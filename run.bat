@@ -5,18 +5,25 @@ chcp 65001 >nul
 :: Ensure working directory is the script's directory
 cd /d "%~dp0"
 
-:: Compile Java source files
-echo Compiling source files...
-if not exist out mkdir out
-javac -d out src\*.java
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] Compilation failed!
-    pause
-    exit /b %errorlevel%
+:: Auto-build JAR if it does not already exist
+if not exist "Lab 04 Nyare.jar" (
+    echo Building executable JAR...
+    if not exist out\classes mkdir out\classes
+    javac -d out\classes src\*.java
+    if errorlevel 1 (
+        echo [ERROR] Compilation failed!
+        pause
+        exit /b 1
+    )
+    jar cfe "Lab 04 Nyare.jar" Main -C out\classes .
+    if errorlevel 1 (
+        echo [ERROR] Packaging JAR failed!
+        pause
+        exit /b 1
+    )
 )
 
-:: Clear the compilation text and start the program
+:: Clear the screen and execute the JAR
 cls
-java -cp out Main
+java -Dfile.encoding=UTF-8 -jar "Lab 04 Nyare.jar"
 pause
