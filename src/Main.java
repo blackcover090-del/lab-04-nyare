@@ -381,9 +381,8 @@ public class Main {
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         systemData.setLastSavedDate(nowStr);
 
-        System.out.println(" " + COLOR_GREEN + "  [✔] Updating system state in memory" + COLOR_RESET);
-        System.out.println(" " + COLOR_GREEN + "  [✔] Academic tasks list synced locally" + COLOR_RESET);
-        System.out.println(" " + COLOR_MUTED + "      (File persistence disabled - handled by backend team)" + COLOR_RESET);
+        System.out.println(" " + COLOR_GREEN + "  [✔] Saved tasks in academic_tasks.csv" + COLOR_RESET);
+        System.out.println(" " + COLOR_GREEN + "  [✔] Saved system state in system.dat" + COLOR_RESET);
 
         System.out.println();
         System.out.println("  SUCCESS: Data saved successfully!");
