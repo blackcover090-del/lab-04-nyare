@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,7 +16,7 @@ import java.util.List;
  */
 public class SystemStore {
 
-    private static final String FILE_NAME = "system.dat";
+    private static final String FILE_NAME = "data/system.dat";
     private SystemData systemData;
     private final TaskStore taskStore;
 
@@ -38,7 +39,7 @@ public class SystemStore {
     }
 
     /**
-     * Updates diagnostics state and saves the SystemData to the system.dat file using binary streams.
+     * Updates diagnostics state and saves the SystemData to the data/system.dat file using binary streams.
      */
     public void saveSystemData() {
         updateStatefulSystemData();
@@ -48,14 +49,20 @@ public class SystemStore {
                 .replace("PM", "pm");
         systemData.setLastSavedDate(formattedDate);
 
-        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(FILE_NAME))) {
-            out.writeLong(systemData.getLastTaskId());
-            out.writeUTF(systemData.getLastSavedDate());
-            out.writeInt(systemData.getActiveTasksCount());
-            out.writeUTF(systemData.getAcademicYear());
-            out.writeUTF(systemData.getApplicationVersion());
-            out.writeUTF(systemData.getApplicationPlatform());
-            out.writeUTF(systemData.getEnvironment());
+        File file = new File(FILE_NAME);
+        try {
+            if (file.getParentFile() != null) {
+                Files.createDirectories(file.getParentFile().toPath());
+            }
+            try (DataOutputStream out = new DataOutputStream(new FileOutputStream(file))) {
+                out.writeLong(systemData.getLastTaskId());
+                out.writeUTF(systemData.getLastSavedDate());
+                out.writeInt(systemData.getActiveTasksCount());
+                out.writeUTF(systemData.getAcademicYear());
+                out.writeUTF(systemData.getApplicationVersion());
+                out.writeUTF(systemData.getApplicationPlatform());
+                out.writeUTF(systemData.getEnvironment());
+            }
         } catch (IOException e) {
             System.out.println("Error saving system data: " + e.getMessage());
         }
@@ -77,7 +84,7 @@ public class SystemStore {
     }
 
     /**
-     * Loads the SystemData object from system.dat. If the file is missing or corrupted,
+     * Loads the SystemData object from data/system.dat. If the file is missing or corrupted,
      * it initializes the system with default data configurations.
      */
     public void loadSystemData() {
@@ -86,6 +93,7 @@ public class SystemStore {
         if (!file.exists()) {
             this.systemData = createDefault();
             updateStatefulSystemData();
+            return;
         }
 
         try (DataInputStream in = new DataInputStream(new FileInputStream(file))) {

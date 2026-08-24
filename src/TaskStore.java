@@ -1,8 +1,10 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -16,7 +18,7 @@ public class TaskStore {
 
     private final List<AcademicTask> AcademicTasks = new ArrayList<>();
 
-    private static final String FILE_PATH = "academic_tasks.csv";
+    private static final String FILE_PATH = "data/academic_tasks.csv";
 
     private static final String HEADER = "id,subjectId,subjectCode,title,notes,type,dueDate,status";
 
@@ -172,13 +174,19 @@ public class TaskStore {
      * Persists the current AcademicTasks memory list to the file path in CSV format.
      */
     public void saveTasks() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
-            writer.write(HEADER);
-            writer.newLine();
-
-            for (AcademicTask task : AcademicTasks) {
-                writer.write(toCsvRow(task));
+        File file = new File(FILE_PATH);
+        try {
+            if (file.getParentFile() != null) {
+                Files.createDirectories(file.getParentFile().toPath());
+            }
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+                writer.write(HEADER);
                 writer.newLine();
+
+                for (AcademicTask task : AcademicTasks) {
+                    writer.write(toCsvRow(task));
+                    writer.newLine();
+                }
             }
         } catch (IOException e) {
             System.out.println("Error saving tasks to " + FILE_PATH + ": " + e.getMessage());
@@ -190,7 +198,7 @@ public class TaskStore {
      * If the file is missing, the load ends silently.
      */
     public void loadTasks() {
-        java.io.File file = new java.io.File(FILE_PATH);
+        File file = new File(FILE_PATH);
         if (!file.exists()) {
             return;
         }
