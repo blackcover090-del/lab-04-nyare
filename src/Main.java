@@ -173,14 +173,17 @@ public class Main {
 
             if (input.matches("\\d+")) {
                 long targetId = Long.parseLong(input);
-                AcademicTask found = null;
-                for (AcademicTask t : currentList) {
-                    if (t.getId() == targetId) {
-                        found = t;
-                        break;
+                try {
+                    AcademicTask found = null;
+                    for (AcademicTask t : currentList) {
+                        if (t.getId() == targetId) {
+                            found = t;
+                            break;
+                        }
                     }
-                }
-                if (found != null) {
+                    if (found == null) {
+                        throw new TaskNotFoundException("Task with ID #" + targetId + " was not found in the current view.", targetId);
+                    }
                     displayTaskDetailsCard(found);
                     // Redraw the list exactly where the user left off
                     printHeader(titleLabel);
@@ -189,8 +192,10 @@ public class Main {
                     for (int i = 0; i <= lastRevealedIndex; i++) {
                         System.out.println(formatTaskLine(currentList.get(i)));
                     }
-                    continue;
+                } catch (TaskNotFoundException e) {
+                    System.out.println("  " + COLOR_RED + "[!] " + e.getMessage() + COLOR_RESET);
                 }
+                continue;
             }
 
             switch (input) {

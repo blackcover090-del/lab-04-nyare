@@ -197,4 +197,33 @@ public class AcademicTask {
     public void setStatus(TaskStatus status) {
         this.status = status;
     }
+
+    /**
+     * Validates that this academic task conforms to required domain constraints.
+     *
+     * @throws InvalidTaskDataException if any domain field is missing or invalid
+     */
+    public void validate() throws InvalidTaskDataException {
+        if (id <= 0) {
+            throw new InvalidTaskDataException("Task ID must be greater than 0 (received: " + id + ").");
+        }
+        if (subjectId <= 0) {
+            throw new InvalidTaskDataException("Subject ID must be greater than 0 (received: " + subjectId + ").");
+        }
+        if (subjectCode == null || subjectCode.trim().isEmpty()) {
+            throw new InvalidTaskDataException("Subject code cannot be null or blank.");
+        }
+        if (title == null || title.trim().isEmpty()) {
+            throw new InvalidTaskDataException("Task title cannot be null or blank.");
+        }
+        if (type == null) {
+            throw new InvalidTaskDataException("Task type cannot be null.");
+        }
+        if (dueDate == null) {
+            throw new InvalidTaskDataException("Task due date cannot be null.");
+        }
+        if (status == null) {
+            throw new InvalidTaskDataException("Task status cannot be null.");
+        }
+    }
 }

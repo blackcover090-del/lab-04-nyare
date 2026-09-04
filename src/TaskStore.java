@@ -152,11 +152,32 @@ public class TaskStore {
     }
 
     /**
-     * Adds a single AcademicTask to the memory repository.
+     * Finds and retrieves an AcademicTask by its unique ID.
+     *
+     * @param id the task ID to search for
+     * @return the matching AcademicTask
+     * @throws TaskNotFoundException if no task with the specified ID exists
+     */
+    public AcademicTask getTaskById(long id) throws TaskNotFoundException {
+        for (AcademicTask task : AcademicTasks) {
+            if (task.getId() == id) {
+                return task;
+            }
+        }
+        throw new TaskNotFoundException(id);
+    }
+
+    /**
+     * Adds a single AcademicTask to the memory repository after validating domain constraints.
      *
      * @param task the AcademicTask object to append
+     * @throws InvalidTaskDataException if the task is null or fails domain validation
      */
-    public void addTask(AcademicTask task) {
+    public void addTask(AcademicTask task) throws InvalidTaskDataException {
+        if (task == null) {
+            throw new InvalidTaskDataException("Cannot add a null task to the store.");
+        }
+        task.validate();
         AcademicTasks.add(task);
     }
 
@@ -215,9 +236,13 @@ public class TaskStore {
                 if (line.isBlank()) {
                     continue;
                 }
-                AcademicTask task = fromCsvRow(line);
-                if (task != null) {
-                    loaded.add(task);
+                try {
+                    AcademicTask task = fromCsvRow(line);
+                    if (task != null) {
+                        loaded.add(task);
+                    }
+                } catch (InvalidTaskDataException e) {
+                    System.out.println("Skipping row: " + e.getMessage());
                 }
             }
 
@@ -247,13 +272,16 @@ public class TaskStore {
 
     /**
      * Parses a CSV row string into a loaded AcademicTask instance.
+     *
+     * @param line the CSV line to parse
+     * @return the parsed AcademicTask object
+     * @throws InvalidTaskDataException if the row format or values violate domain rules
      */
-    private static AcademicTask fromCsvRow(String line) {
+    private static AcademicTask fromCsvRow(String line) throws InvalidTaskDataException {
         List<String> fields = parseCsvLine(line);
 
         if (fields.size() != 8) {
-            System.out.println("Skipping malformed row: " + line);
-            return null;
+            throw new InvalidTaskDataException("Malformed CSV row, expected 8 fields but found " + fields.size() + ": " + line);
         }
 
         try {
@@ -262,15 +290,30 @@ public class TaskStore {
             String subjectCode = fields.get(2);
             String title = fields.get(3);
             String notes = fields.get(4);
-            TaskType type = fields.get(5).isEmpty() ? null : TaskType.valueOf(fields.get(5));
-            LocalDateTime dueDate = fields.get(6).isEmpty() ? null : LocalDateTime.parse(fields.get(6), DATE_FORMAT);
-            TaskStatus status = fields.get(7).isEmpty() ? null : TaskStatus.valueOf(fields.get(7));
+            
+            if (fields.get(5).isEmpty()) {
+                throw new InvalidTaskDataException("Missing task type in row: " + line);
+            }
+            TaskType type = TaskType.valueOf(fields.get(5));
 
-            return new AcademicTask(id, subjectId, subjectCode, title, notes, type, dueDate, status);
+            if (fields.get(6).isEmpty()) {
+                throw new InvalidTaskDataException("Missing task due date in row: " + line);
+            }
+            LocalDateTime dueDate = LocalDateTime.parse(fields.get(6), DATE_FORMAT);
 
+            if (fields.get(7).isEmpty()) {
+                throw new InvalidTaskDataException("Missing task status in row: " + line);
+            }
+            TaskStatus status = TaskStatus.valueOf(fields.get(7));
+
+            AcademicTask task = new AcademicTask(id, subjectId, subjectCode, title, notes, type, dueDate, status);
+            task.validate();
+            return task;
+
+        } catch (InvalidTaskDataException e) {
+            throw e;
         } catch (Exception e) {
-            System.out.println("Skipping row due to parse error: " + line + " (" + e.getMessage() + ")");
-            return null;
+            throw new InvalidTaskDataException("Failed to parse task row: " + line + " (" + e.getMessage() + ")", e);
         }
     }
 
