@@ -48,11 +48,12 @@ public class Main {
 
             switch (choice) {
                 case "1" -> displayTwoWeekTasks();
-                case "2" -> generateStudyPlan();
-                case "3" -> displayCurrentTasks();
-                case "4" -> manualSave();
-                case "5" -> showAbout();
-                case "6" -> {
+                case "2" -> addNewTask(scanner);
+                case "3" -> generateStudyPlan();
+                case "4" -> displayCurrentTasks();
+                case "5" -> manualSave();
+                case "6" -> showAbout();
+                case "7" -> {
                     if (exitProgram()) {
                         break label;
                     }
@@ -65,9 +66,6 @@ public class Main {
      * Clears both the terminal viewport and the scrollback buffer history.
      */
     private static void clearScreen() {
-        // \033[H moves cursor to top-left
-        // \033[2J clears the viewport
-        // \033[3J clears the scrollback buffer (for full-screen in real terminals)
         System.out.print("\033[H\033[2J\033[3J");
         System.out.flush();
     }
@@ -81,7 +79,7 @@ public class Main {
         clearScreen();
         System.out.println(" " + "─".repeat(HEADER_WIDTH));
         int spaces = (HEADER_WIDTH - title.length()) / 2;
-        String format = " %" + spaces + "s%s";
+        String format = " %" + Math.max(0, spaces) + "s%s";
         System.out.printf((format) + "%n", "", COLOR_BOLD + COLOR_ACCENT + title + COLOR_RESET);
         System.out.println(" " + "─".repeat(HEADER_WIDTH));
     }
@@ -92,7 +90,7 @@ public class Main {
     private static void printMainMenu() {
         clearScreen();
         System.out.println("\n");
-        System.out.print(COLOR_BOLD + COLOR_ACCENT); // Use print instead of println to avoid empty newline
+        System.out.print(COLOR_BOLD + COLOR_ACCENT);
         System.out.println("     /$$ /$$   /$$ /$$     /$$ /$$$$$$  /$$$$$$$  /$$$$$$$$ /$$$$");
         System.out.println("    | $/| $$$ | $$|  $$   /$$//$$__  $$| $$__  $$| $$_____//$$  $$");
         System.out.println("    |_/ | $$$$| $$ \\  $$ /$$/| $$  \\ $$| $$  \\ $$| $$     |__/\\ $$");
@@ -106,17 +104,181 @@ public class Main {
         System.out.println(" " + COLOR_MUTED + "─".repeat(MENU_WIDTH) + COLOR_RESET);
         System.out.println();
         System.out.println("        [" + COLOR_ACCENT + "1" + COLOR_RESET + "] \uD834\uDD1C Display 2-Week Tasks");
-        System.out.println("        [" + COLOR_ACCENT + "2" + COLOR_RESET + "] ✦ Generate Study Plan from Notes");
-        System.out.println("        [" + COLOR_ACCENT + "3" + COLOR_RESET + "] ◴ Display Current Tasks");
-        System.out.println("        [" + COLOR_ACCENT + "4" + COLOR_RESET + "] ↩ Manual Save");
-        System.out.println("        [" + COLOR_ACCENT + "5" + COLOR_RESET + "] ⓘ About");
-        System.out.println("        [" + COLOR_ACCENT + "6" + COLOR_RESET + "] ➜] Exit");
+        System.out.println("        [" + COLOR_ACCENT + "2" + COLOR_RESET + "] ✚ Add New Task (Interactive Validation)");
+        System.out.println("        [" + COLOR_ACCENT + "3" + COLOR_RESET + "] ✦ Generate Study Plan from Notes");
+        System.out.println("        [" + COLOR_ACCENT + "4" + COLOR_RESET + "] ◴ Display Current Tasks");
+        System.out.println("        [" + COLOR_ACCENT + "5" + COLOR_RESET + "] ↩ Manual Save");
+        System.out.println("        [" + COLOR_ACCENT + "6" + COLOR_RESET + "] ⓘ About");
+        System.out.println("        [" + COLOR_ACCENT + "7" + COLOR_RESET + "] ➜ Exit");
         System.out.println();
         System.out.println(" " + COLOR_MUTED + "─".repeat(MENU_WIDTH) + COLOR_RESET);
     }
 
+    /**
+     * Interactive workflow for creating a new AcademicTask with real-time validation and normalization.
+     * Demonstrates regex pattern checks, character inspections, numeric parsing, and pre-persistence safeguards.
+     */
+    private static void addNewTask(Scanner scanner) {
+        printHeader("ADD NEW ACADEMIC TASK");
+        System.out.println("  Enter the required details below. Type 'cancel' at any prompt to abort.");
+        System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
+
+        long nextId = TASK_STORE.getNextId();
+        System.out.println("  Auto-assigned Task ID: " + COLOR_ACCENT + nextId + COLOR_RESET);
+        System.out.println();
+
+        // 1. Subject ID (Numeric + Character check)
+        long subjectId;
+        while (true) {
+            System.out.print("  " + COLOR_BOLD + "Enter Subject ID (positive number, e.g. 101): " + COLOR_RESET + "\u001B[97m");
+            String rawSubjId = scanner.nextLine();
+            System.out.print(COLOR_RESET);
+
+            if (rawSubjId.trim().equalsIgnoreCase("cancel")) {
+                System.out.println("  " + COLOR_MUTED + "[!] Task creation cancelled." + COLOR_RESET);
+                pressEnterToContinue(scanner);
+                return;
+            }
+
+            try {
+                subjectId = TaskValidator.parseAndValidateId(rawSubjId, "Subject ID");
+                break;
+            } catch (InvalidTaskDataException e) {
+                System.out.println("  " + COLOR_RED + "[X] " + e.getMessage() + COLOR_RESET + "\n");
+            }
+        }
+
+        // 2. Subject Code (Regex + Normalization)
+        String subjectCode;
+        while (true) {
+            System.out.print("  " + COLOR_BOLD + "Enter Subject Code (e.g. 'CCS 201', 'MATH 019A'): " + COLOR_RESET + "\u001B[97m");
+            String rawCode = scanner.nextLine();
+            System.out.print(COLOR_RESET);
+
+            if (rawCode.trim().equalsIgnoreCase("cancel")) {
+                System.out.println("  " + COLOR_MUTED + "[!] Task creation cancelled." + COLOR_RESET);
+                pressEnterToContinue(scanner);
+                return;
+            }
+
+            try {
+                subjectCode = TaskValidator.normalizeAndValidateSubjectCode(rawCode);
+                System.out.println("  " + COLOR_GREEN + "[✔] Normalized Subject Code: " + COLOR_BOLD + subjectCode + COLOR_RESET);
+                break;
+            } catch (InvalidTaskDataException e) {
+                System.out.println("  " + COLOR_RED + "[X] " + e.getMessage() + COLOR_RESET + "\n");
+            }
+        }
+
+        // 3. Task Title (Character-level check + Length + Capitalization)
+        String title;
+        while (true) {
+            System.out.print("  " + COLOR_BOLD + "Enter Task Title (3-60 chars, must start with letter/digit): " + COLOR_RESET + "\u001B[97m");
+            String rawTitle = scanner.nextLine();
+            System.out.print(COLOR_RESET);
+
+            if (rawTitle.trim().equalsIgnoreCase("cancel")) {
+                System.out.println("  " + COLOR_MUTED + "[!] Task creation cancelled." + COLOR_RESET);
+                pressEnterToContinue(scanner);
+                return;
+            }
+
+            try {
+                title = TaskValidator.normalizeAndValidateTitle(rawTitle);
+                System.out.println("  " + COLOR_GREEN + "[✔] Normalized Title: " + COLOR_BOLD + title + COLOR_RESET);
+                break;
+            } catch (InvalidTaskDataException e) {
+                System.out.println("  " + COLOR_RED + "[X] " + e.getMessage() + COLOR_RESET + "\n");
+            }
+        }
+
+        // 4. Task Type (Enum parse + Case-insensitive matching)
+        TaskType type;
+        while (true) {
+            System.out.print("  " + COLOR_BOLD + "Enter Task Type [ASSIGNMENT, QUIZ, PROJECT, EXAM, ACTIVITY, READING, EVENT]: " + COLOR_RESET + "\u001B[97m");
+            String rawType = scanner.nextLine();
+            System.out.print(COLOR_RESET);
+
+            if (rawType.trim().equalsIgnoreCase("cancel")) {
+                System.out.println("  " + COLOR_MUTED + "[!] Task creation cancelled." + COLOR_RESET);
+                pressEnterToContinue(scanner);
+                return;
+            }
+
+            try {
+                type = TaskValidator.parseAndValidateTaskType(rawType);
+                System.out.println("  " + COLOR_GREEN + "[✔] Recognized Type: " + COLOR_BOLD + type.name() + COLOR_RESET);
+                break;
+            } catch (InvalidTaskDataException e) {
+                System.out.println("  " + COLOR_RED + "[X] " + e.getMessage() + COLOR_RESET + "\n");
+            }
+        }
+
+        // 5. Due Date (Regex + LocalDateTime Parsing)
+        LocalDateTime dueDate;
+        while (true) {
+            System.out.print("  " + COLOR_BOLD + "Enter Due Date (YYYY-MM-DD HH:mm, e.g. '2026-08-30 14:00'): " + COLOR_RESET + "\u001B[97m");
+            String rawDueDate = scanner.nextLine();
+            System.out.print(COLOR_RESET);
+
+            if (rawDueDate.trim().equalsIgnoreCase("cancel")) {
+                System.out.println("  " + COLOR_MUTED + "[!] Task creation cancelled." + COLOR_RESET);
+                pressEnterToContinue(scanner);
+                return;
+            }
+
+            try {
+                dueDate = TaskValidator.parseAndValidateDateTime(rawDueDate);
+                System.out.println("  " + COLOR_GREEN + "[✔] Validated Due Date: " + COLOR_BOLD + dueDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) + COLOR_RESET);
+                break;
+            } catch (InvalidTaskDataException e) {
+                System.out.println("  " + COLOR_RED + "[X] " + e.getMessage() + COLOR_RESET + "\n");
+            }
+        }
+
+        // 6. Detailed Notes (Sanitization)
+        System.out.print("  " + COLOR_BOLD + "Enter Task Notes / Instructions (Optional, press Enter to skip): " + COLOR_RESET + "\u001B[97m");
+        String rawNotes = scanner.nextLine();
+        System.out.print(COLOR_RESET);
+        String notes = TaskValidator.normalizeNotes(rawNotes);
+
+        // Preview & Object Creation
+        System.out.println();
+        System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
+        System.out.println(COLOR_BOLD + "  REVIEW NORMALIZED TASK DATA BEFORE CREATION:" + COLOR_RESET);
+        System.out.println("    ID:          " + nextId);
+        System.out.println("    Subject:     " + subjectCode + " (ID: " + subjectId + ")");
+        System.out.println("    Title:       " + title);
+        System.out.println("    Type:        " + type);
+        System.out.println("    Due Date:    " + dueDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        System.out.println("    Notes:       " + (notes.isEmpty() ? "(None)" : notes));
+        System.out.println("    Status:      PENDING");
+        System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
+
+        System.out.print("  " + COLOR_BOLD + COLOR_ACCENT + "Confirm and save this task? (y/n): " + COLOR_RESET + "\u001B[97m");
+        String confirm = scanner.nextLine().trim();
+        System.out.print(COLOR_RESET);
+
+        if (confirm.equalsIgnoreCase("y") || confirm.equalsIgnoreCase("yes")) {
+            try {
+                // Object is instantiated and added strictly AFTER complete validation
+                AcademicTask task = new AcademicTask(nextId, subjectId, subjectCode, title, notes, type, dueDate, TaskStatus.PENDING);
+                TASK_STORE.addTask(task);
+                TASK_STORE.saveTasks();
+                SYSTEM_STORE.saveSystemData();
+
+                System.out.println("\n  " + COLOR_GREEN + "[✔] SUCCESS: Task #" + nextId + " validated, normalized, and saved to data/academic_tasks.csv!" + COLOR_RESET);
+            } catch (InvalidTaskDataException e) {
+                System.out.println("\n  " + COLOR_RED + "[!] Unexpected validation failure: " + e.getMessage() + COLOR_RESET);
+            }
+        } else {
+            System.out.println("\n  " + COLOR_MUTED + "[!] Task creation cancelled by user. No data was saved." + COLOR_RESET);
+        }
+
+        pressEnterToContinue(scanner);
+    }
+
     private static void displayTwoWeekTasks() {
-        // Filter: Due today up to 14 days later (inclusive)
         LocalDateTime startOfToday = LocalDateTime.now().toLocalDate().atStartOfDay();
         LocalDateTime endOf14Days = LocalDateTime.now().toLocalDate().plusDays(14).atTime(23, 59, 59);
 
@@ -131,7 +293,6 @@ public class Main {
     }
 
     private static void displayCurrentTasks() {
-        // Filter: Today only (from start of today until 23:59:59)
         LocalDateTime startOfToday = LocalDateTime.now().toLocalDate().atStartOfDay();
         LocalDateTime endOfToday = LocalDateTime.now().toLocalDate().atTime(23, 59, 59);
 
@@ -155,25 +316,24 @@ public class Main {
     private static void displayTaskTable(String titleLabel, List<AcademicTask> baseList) {
         String filterQuery = "None";
         List<AcademicTask> currentList = new ArrayList<>(baseList);
-        
+
         Scanner scanner = new Scanner(System.in);
-        
-        // Print the header, information/controls, column labels, and the first 10 items initially
+
         printHeader(titleLabel);
         printInfoAndControls(filterQuery, currentList.size());
         printTableLabels();
-        
+
         int lastRevealedIndex = printInitialTasks(currentList);
 
         label:
         while (true) {
-            String input = scanner.nextLine().trim().toLowerCase();
-            
+            String input = scanner.nextLine().trim();
+
             boolean triggerSearch = false;
 
             if (input.matches("\\d+")) {
-                long targetId = Long.parseLong(input);
                 try {
+                    long targetId = Long.parseLong(input);
                     AcademicTask found = null;
                     for (AcademicTask t : currentList) {
                         if (t.getId() == targetId) {
@@ -198,23 +358,21 @@ public class Main {
                 continue;
             }
 
-            switch (input) {
-                case "":
-                    // Reveal the next line only, appending it directly without redrawing
-                    if (lastRevealedIndex + 1 < currentList.size()) {
-                        lastRevealedIndex++;
-                        AcademicTask nextTask = currentList.get(lastRevealedIndex);
-                        System.out.print(formatTaskLine(nextTask));
-                    } else {
-                        System.out.println("  " + COLOR_MUTED + "(END)\n" + COLOR_RESET);
-                        triggerSearch = true;
-                    }
-                    break;
-                case "s":
+            if (input.equalsIgnoreCase("q")) {
+                break;
+            } else if (input.equalsIgnoreCase("s")) {
+                triggerSearch = true;
+            } else if (input.isEmpty()) {
+                if (lastRevealedIndex + 1 < currentList.size()) {
+                    lastRevealedIndex++;
+                    AcademicTask nextTask = currentList.get(lastRevealedIndex);
+                    System.out.print(formatTaskLine(nextTask));
+                } else {
+                    System.out.println("  " + COLOR_MUTED + "(END)\n" + COLOR_RESET);
                     triggerSearch = true;
-                    break;
-                default:
-                    break label;
+                }
+            } else {
+                break;
             }
 
             if (triggerSearch) {
@@ -228,20 +386,19 @@ public class Main {
                     currentList.clear();
                     for (AcademicTask t : baseList) {
                         if (t.getSubjectCode().toLowerCase().contains(query.toLowerCase()) ||
-                            t.getTitle().toLowerCase().contains(query.toLowerCase()) ||
-                            t.getNotes().toLowerCase().contains(query.toLowerCase())) {
+                                t.getTitle().toLowerCase().contains(query.toLowerCase()) ||
+                                t.getNotes().toLowerCase().contains(query.toLowerCase())) {
                             currentList.add(t);
                         }
                     }
                     filterQuery = query;
                 }
-                
-                // Clear output flow visual spacing and redraw table with search results
+
                 System.out.println();
                 printHeader(titleLabel);
                 printInfoAndControls(filterQuery, currentList.size());
                 printTableLabels();
-                
+
                 lastRevealedIndex = printInitialTasks(currentList);
             }
         }
@@ -251,11 +408,11 @@ public class Main {
         int showingEnd = Math.min(totalTasks, 10);
         int showingStart = totalTasks == 0 ? 0 : 1;
         String info = "Found " + COLOR_BOLD + totalTasks + COLOR_RESET + " task(s)";
-        if (!filterQuery.equals("None")) {
+        if (!filterQuery.equalsIgnoreCase("None")) {
             info += " (Filter: " + filterQuery + ")";
         }
         info += " · showing " + showingStart + "-" + showingEnd + " · " + COLOR_BOLD + "[ID]" + COLOR_RESET + " for notes, ↵ for more, " + COLOR_BOLD + "s" + COLOR_RESET + " to search, " + COLOR_BOLD + "q" + COLOR_RESET + " to stop";
-        
+
         System.out.println("  " + info);
         System.out.println();
     }
@@ -267,19 +424,12 @@ public class Main {
         System.out.println(" " + COLOR_MUTED + "─".repeat(TABLE_WIDTH) + COLOR_RESET);
     }
 
-    /**
-     * Prints the initial chunk of tasks (up to a limit of 10) to the console.
-     * The last item is printed using 'print' to keep the cursor positioned for scrolling.
-     *
-     * @param currentList the list of tasks to render
-     * @return the index of the last task printed, or -1 if the list was empty
-     */
     private static int printInitialTasks(List<AcademicTask> currentList) {
         if (currentList.isEmpty()) {
             System.out.println("  " + COLOR_RED + "No results found." + COLOR_RESET);
             return -1;
         }
-        
+
         int limit = Math.min(currentList.size(), 10);
         for (int i = 0; i < limit; i++) {
             AcademicTask t = currentList.get(i);
@@ -296,7 +446,7 @@ public class Main {
         String idStr = String.format("%0" + WIDTH_ID + "d", t.getId());
         String subj = padRight(t.getSubjectCode(), WIDTH_SUBJ);
         String title = padRight(truncate(t.getTitle()), WIDTH_TITLE);
-        
+
         String typeColor = COLOR_RESET;
         typeColor = switch (t.getType()) {
             case ACTIVITY -> COLOR_CYAN;
@@ -307,25 +457,18 @@ public class Main {
         };
         String typeStr = typeColor + padRight(t.getType().name(), WIDTH_TYPE) + COLOR_RESET;
 
-        // Format Due Date
         String dueStr = t.getDueDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
 
         String statusColor = t.getStatus() == TaskStatus.COMPLETED ? COLOR_GREEN : COLOR_YELLOW;
         String statusStr = statusColor + padRight(t.getStatus().name(), WIDTH_STATUS) + COLOR_RESET;
 
-        // No vertical column lines (|)
         return String.format("  %s   %s   %s   %s   %s   %s", idStr, subj, title, typeStr, dueStr, statusStr);
     }
 
-    /**
-     * Implements Menu Option 2: Synthesizes a 2-week study plan from student notes.
-     * Evaluates task notes due in the next 14 days and triggers redirection.
-     */
     private static void generateStudyPlan() {
         printHeader("GENERATE STUDY PLAN FROM NOTES");
         System.out.println("  Generating Study Plan...");
 
-        // Count tasks with notes due today or in the next 14 days
         LocalDateTime startOfToday = LocalDateTime.now().toLocalDate().atStartOfDay();
         LocalDateTime endOf14Days = LocalDateTime.now().toLocalDate().plusDays(14).atTime(23, 59, 59);
 
@@ -346,7 +489,7 @@ public class Main {
         System.out.println();
         System.out.println("  SUCCESS: Study Plan generated and loaded in background.");
         System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
-        
+
         System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Press [Enter] to redirect to Display 2-Week Tasks: " + COLOR_RESET + "\u001B[97m");
         Scanner scanner = new Scanner(System.in);
         scanner.nextLine();
@@ -355,20 +498,16 @@ public class Main {
         TASK_STORE.saveTasks();
         SYSTEM_STORE.saveSystemData();
 
-        // Redirect directly to option 1
         displayTwoWeekTasks();
     }
 
-    /**
-     * Implements Menu Option 4: Performs a manual save of tasks and system metadata.
-     * Recalculates stats and updates configuration details.
-     */
     private static void manualSave() {
         printHeader("MANUAL SAVE");
-        System.out.println("  Saving system configuration...");
+        System.out.println("  Saving system configuration and tasks...");
         System.out.println();
 
-        // Recalculate SystemData stats before saving
+        TASK_STORE.saveTasks();
+
         long maxId = 0;
         int activeCount = 0;
         for (AcademicTask t : TASK_STORE.getTasks()) {
@@ -386,23 +525,18 @@ public class Main {
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         systemData.setLastSavedDate(nowStr);
 
-        System.out.println(" " + COLOR_GREEN + "  [✔] Saved tasks in academic_tasks.csv" + COLOR_RESET);
-        System.out.println(" " + COLOR_GREEN + "  [✔] Saved system state in system.dat" + COLOR_RESET);
+        SYSTEM_STORE.saveSystemData();
+
+        System.out.println(" " + COLOR_GREEN + "  [✔] Saved tasks in data/academic_tasks.csv" + COLOR_RESET);
+        System.out.println(" " + COLOR_GREEN + "  [✔] Saved system state in data/system.dat" + COLOR_RESET);
 
         System.out.println();
         System.out.println("  SUCCESS: Data saved successfully!");
         System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
-        
-        System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Press [Enter] to return to Main Menu: " + COLOR_RESET + "\u001B[97m");
-        Scanner scanner = new Scanner(System.in);
-        scanner.nextLine();
-        System.out.print(COLOR_RESET);
+
+        pressEnterToContinue(new Scanner(System.in));
     }
 
-    /**
-     * Implements Menu Option 5: Displays system diagnostics, platform environments,
-     * and metadata properties.
-     */
     private static void showAbout() {
         var systemData = SYSTEM_STORE.getSystemData();
         printHeader("ABOUT");
@@ -423,25 +557,17 @@ public class Main {
         }
         System.out.println("   - Last Saved Date:    " + COLOR_ACCENT + lastSaved + COLOR_RESET);
         System.out.println(" " + COLOR_MUTED + "─".repeat(HEADER_WIDTH) + COLOR_RESET);
-        
-        System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Press [Enter] to return to Main Menu: " + COLOR_RESET + "\u001B[97m");
-        Scanner scanner = new Scanner(System.in);
-        scanner.nextLine();
-        System.out.print(COLOR_RESET);
+
+        pressEnterToContinue(new Scanner(System.in));
     }
 
-    /**
-     * Implements Menu Option 6: Prompts exit verification before stopping execution.
-     *
-     * @return true if the user confirms exit, false otherwise
-     */
     private static boolean exitProgram() {
         printHeader("EXIT PROGRAM");
         System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Are you sure you want to exit? (y/n): " + COLOR_RESET + "\u001B[97m");
         Scanner scanner = new Scanner(System.in);
-        String choice = scanner.nextLine().trim().toLowerCase();
+        String choice = scanner.nextLine().trim();
         System.out.print(COLOR_RESET);
-        if (choice.equals("y") || choice.equals("yes")) {
+        if (choice.equalsIgnoreCase("y") || choice.equalsIgnoreCase("yes")) {
             System.out.println();
             System.out.println("  Thank you for using 'NYARE! Keeping you organized and on track.");
             System.out.println("  Goodbye!");
@@ -451,7 +577,6 @@ public class Main {
         return false;
     }
 
-    // Helper: Pad right
     private static String padRight(String s, int n) {
         if (s == null) s = "";
         if (s.length() >= n) {
@@ -460,7 +585,6 @@ public class Main {
         return String.format("%-" + n + "s", s);
     }
 
-    // Helper: Truncate with ellipsis
     private static String truncate(String s) {
         if (s == null) return "";
         if (s.length() > Main.WIDTH_TITLE) {
@@ -469,12 +593,6 @@ public class Main {
         return s;
     }
 
-    /**
-     * Clears the viewport and renders a detailed card layout for a selected AcademicTask,
-     * fully outputting its formatted details and notes before prompting return.
-     *
-     * @param t the AcademicTask record to display
-     */
     private static void displayTaskDetailsCard(AcademicTask t) {
         clearScreen();
         printHeader("TASK DETAILS");
@@ -485,21 +603,15 @@ public class Main {
         System.out.println("   Status:      " + t.getStatus());
         System.out.println();
         System.out.println("   Notes:");
-        
-        // Wrap the notes block to 70 characters so it fits neatly
+
         printWrappedText(t.getNotes());
-        
+
         System.out.println(" " + "─".repeat(HEADER_WIDTH));
         System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Press [Enter] to return to list: " + COLOR_RESET + "\u001B[97m");
         new Scanner(System.in).nextLine();
         System.out.print(COLOR_RESET);
     }
-   
-    /**
-     * Helper that splits a notes block by spaces and prints it fully wrapped to a 70-character limit.
-     *
-     * @param text the notes text block to wrap
-     */
+
     private static void printWrappedText(String text) {
         if (text == null || text.isEmpty()) {
             System.out.println("   " + "(None)");
@@ -509,7 +621,7 @@ public class Main {
         StringBuilder line = new StringBuilder("   ");
         for (String word : words) {
             if (line.length() + word.length() - "   ".length() > 70) {
-                System.out.println(line.toString());
+                System.out.println(line);
                 line = new StringBuilder("   ").append(word).append(" ");
             } else {
                 line.append(word).append(" ");
@@ -518,20 +630,14 @@ public class Main {
         System.out.println(line.toString().stripTrailing());
     }
 
+    private static void pressEnterToContinue(Scanner scanner) {
+        System.out.print(" " + COLOR_BOLD + COLOR_ACCENT + "> Press [Enter] to return to Main Menu: " + COLOR_RESET + "\u001B[97m");
+        scanner.nextLine();
+        System.out.print(COLOR_RESET);
+    }
+
     private static void loadData() {
         TASK_STORE.loadTasks();
         SYSTEM_STORE.loadSystemData();
-
-        // Perform stats recalculation
-        long maxId = 0;
-        int activeCount = 0;
-        for (AcademicTask t : TASK_STORE.getTasks()) {
-            if (t.getId() > maxId) {
-                maxId = t.getId();
-            }
-            if (t.getStatus() == TaskStatus.PENDING) {
-                activeCount++;
-            }
-        }
     }
 }

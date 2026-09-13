@@ -49,6 +49,26 @@ public class SystemData {
     }
 
     /**
+     * Validates system metadata fields.
+     *
+     * @throws InvalidTaskDataException if any system data property fails validation
+     */
+    public void validate() throws InvalidTaskDataException {
+        if (lastTaskId < 0) {
+            throw new InvalidTaskDataException("Last task ID cannot be negative: " + lastTaskId);
+        }
+        if (activeTasksCount < 0) {
+            throw new InvalidTaskDataException("Active tasks count cannot be negative: " + activeTasksCount);
+        }
+        this.academicYear = SystemValidator.normalizeAndValidateAcademicYear(this.academicYear);
+        this.applicationVersion = SystemValidator.normalizeAndValidateVersion(this.applicationVersion);
+        this.environment = SystemValidator.normalizeAndValidateEnvironment(this.environment);
+        if (applicationPlatform == null || applicationPlatform.isBlank()) {
+            this.applicationPlatform = System.getProperty("os.name");
+        }
+    }
+
+    /**
      * Gets the last assigned database task ID.
      *
      * @return the last task ID

@@ -55,6 +55,45 @@ public class AcademicTask {
     }
 
     /**
+     * Factory method that cleans, normalizes, and validates all input data
+     * before constructing an AcademicTask instance.
+     *
+     * @param rawId          raw task ID string or number
+     * @param rawSubjectId   raw subject ID string or number
+     * @param rawSubjectCode raw course code string (e.g. "  ccs-201 ")
+     * @param rawTitle       raw task title string (e.g. "  polymorphism lab ")
+     * @param rawNotes       raw notes string
+     * @param rawType        raw task type string (e.g. "activity")
+     * @param rawDueDate     raw due date string (e.g. "2026-08-25 14:00")
+     * @param rawStatus      raw status string (e.g. "pending")
+     * @return a normalized and validated AcademicTask instance
+     * @throws InvalidTaskDataException if any field is invalid
+     */
+    public static AcademicTask createFromRaw(
+            String rawId,
+            String rawSubjectId,
+            String rawSubjectCode,
+            String rawTitle,
+            String rawNotes,
+            String rawType,
+            String rawDueDate,
+            String rawStatus) throws InvalidTaskDataException {
+
+        long id = TaskValidator.parseAndValidateId(rawId, "Task ID");
+        long subjectId = TaskValidator.parseAndValidateId(rawSubjectId, "Subject ID");
+        String subjectCode = TaskValidator.normalizeAndValidateSubjectCode(rawSubjectCode);
+        String title = TaskValidator.normalizeAndValidateTitle(rawTitle);
+        String notes = TaskValidator.normalizeNotes(rawNotes);
+        TaskType type = TaskValidator.parseAndValidateTaskType(rawType);
+        LocalDateTime dueDate = TaskValidator.parseAndValidateDateTime(rawDueDate);
+        TaskStatus status = TaskValidator.parseAndValidateTaskStatus(rawStatus);
+
+        AcademicTask task = new AcademicTask(id, subjectId, subjectCode, title, notes, type, dueDate, status);
+        task.validate();
+        return task;
+    }
+
+    /**
      * Gets the unique identifier of this academic task.
      *
      * @return the task ID
@@ -199,7 +238,7 @@ public class AcademicTask {
     }
 
     /**
-     * Validates that this academic task conforms to required domain constraints.
+     * Validates that this academic task conforms to all domain rules and formatting constraints.
      *
      * @throws InvalidTaskDataException if any domain field is missing or invalid
      */
@@ -210,12 +249,23 @@ public class AcademicTask {
         if (subjectId <= 0) {
             throw new InvalidTaskDataException("Subject ID must be greater than 0 (received: " + subjectId + ").");
         }
-        if (subjectCode == null || subjectCode.trim().isEmpty()) {
+        if (subjectCode == null || subjectCode.isBlank()) {
             throw new InvalidTaskDataException("Subject code cannot be null or blank.");
         }
-        if (title == null || title.trim().isEmpty()) {
+        // Normalize and re-verify format
+        this.subjectCode = TaskValidator.normalizeAndValidateSubjectCode(this.subjectCode);
+
+        if (title == null || title.isBlank()) {
             throw new InvalidTaskDataException("Task title cannot be null or blank.");
         }
+        this.title = TaskValidator.normalizeAndValidateTitle(this.title);
+
+        if (notes != null) {
+            this.notes = TaskValidator.normalizeNotes(this.notes);
+        } else {
+            this.notes = "";
+        }
+
         if (type == null) {
             throw new InvalidTaskDataException("Task type cannot be null.");
         }

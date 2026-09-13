@@ -1,9 +1,4 @@
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -13,10 +8,11 @@ import java.util.List;
 /**
  * Service class that acts as the repository and persistence layer for AcademicTasks.
  * This class handles storing task items in memory and saving/loading them to a text CSV file.
+ * Only validated and normalized records are admitted into the store or persisted to disk.
  */
 public class TaskStore {
 
-    private final List<AcademicTask> AcademicTasks = new ArrayList<>();
+    private final List<AcademicTask> academicTasks = new ArrayList<>();
 
     private static final String FILE_PATH = "data/academic_tasks.csv";
 
@@ -58,7 +54,6 @@ public class TaskStore {
                 "gawan ng reflection paper yung video tutorial about digital privacy and artificial intelligence. minimum of 500 words and submit as pdf sa portal tonight",
                 TaskType.ACTIVITY, LocalDateTime.of(2026, 8, 22, 23, 59), TaskStatus.COMPLETED));
 
-        // 20 more tasks spanning August 23 to mid-September, with detailed Taglish notes.
         list.add(new AcademicTask(6, 102, "CCS 202", "Syntax Trees Quiz",
                 "Meron daw kaming test sa parses trees at regular expressions sa monday morning. reviewhin yung derivation rules kasi parang malilito ako sa ambiguity",
                 TaskType.EXAM, LocalDateTime.of(2026, 8, 23, 9, 30), TaskStatus.PENDING));
@@ -139,7 +134,52 @@ public class TaskStore {
                 "oop console task planner final project proposal. include class diagrams, data models, file handling layers, and console UI flow. repository must be fully documented on github",
                 TaskType.PROJECT, LocalDateTime.of(2026, 9, 12, 23, 59), TaskStatus.PENDING));
 
+        // Validate all dummy data items before returning
+        for (AcademicTask t : list) {
+            try {
+                t.validate();
+            } catch (InvalidTaskDataException e) {
+                System.err.println("Warning: Seed task failed validation: " + e.getMessage());
+            }
+        }
+
         return list;
+    }
+
+    /**
+     * Parses a CSV row string into a loaded AcademicTask instance.
+     * Integrates format validation and safe parsing.
+     *
+     * @param line the CSV line to parse
+     * @return the parsed AcademicTask object
+     * @throws InvalidTaskDataException if the row format or values violate domain rules
+     */
+    private static AcademicTask fromCsvRow(String line) throws InvalidTaskDataException {
+        List<String> fields = parseCsvLine(line);
+
+        if (fields.size() != 8) {
+            throw new InvalidTaskDataException("Malformed CSV row (expected 8 fields, found " + fields.size() + "): " + line);
+        }
+
+        String rawId = fields.get(0);
+        String rawSubjectId = fields.get(1);
+        String rawSubjectCode = fields.get(2);
+        String rawTitle = fields.get(3);
+        String rawNotes = fields.get(4);
+        String rawType = fields.get(5);
+        String rawDueDate = fields.get(6);
+        String rawStatus = fields.get(7);
+
+        return AcademicTask.createFromRaw(
+                rawId,
+                rawSubjectId,
+                rawSubjectCode,
+                rawTitle,
+                rawNotes,
+                rawType,
+                rawDueDate,
+                rawStatus
+        );
     }
 
     /**
@@ -148,7 +188,24 @@ public class TaskStore {
      * @return the list of academic tasks
      */
     public List<AcademicTask> getTasks() {
-        return AcademicTasks;
+        return academicTasks;
+    }
+
+    /**
+     * Replaces the entire local repository list with the provided set of tasks.
+     *
+     * @param tasks the new list of academic tasks to set
+     */
+    public void setTasks(List<AcademicTask> tasks) {
+        academicTasks.clear();
+        for (AcademicTask t : tasks) {
+            try {
+                t.validate();
+                academicTasks.add(t);
+            } catch (InvalidTaskDataException e) {
+                System.err.println("Skipped invalid task: " + e.getMessage());
+            }
+        }
     }
 
     /**
@@ -159,7 +216,7 @@ public class TaskStore {
      * @throws TaskNotFoundException if no task with the specified ID exists
      */
     public AcademicTask getTaskById(long id) throws TaskNotFoundException {
-        for (AcademicTask task : AcademicTasks) {
+        for (AcademicTask task : academicTasks) {
             if (task.getId() == id) {
                 return task;
             }
@@ -178,21 +235,26 @@ public class TaskStore {
             throw new InvalidTaskDataException("Cannot add a null task to the store.");
         }
         task.validate();
-        AcademicTasks.add(task);
+        academicTasks.add(task);
     }
 
     /**
-     * Replaces the entire local repository list with the provided set of tasks.
+     * Generates the next available sequential task ID.
      *
-     * @param tasks the new list of academic tasks to set
+     * @return highest current ID + 1, or 1 if the store is empty
      */
-    public void setTasks(List<AcademicTask> tasks) {
-        AcademicTasks.clear();
-        AcademicTasks.addAll(tasks);
+    public long getNextId() {
+        long maxId = 0;
+        for (AcademicTask t : academicTasks) {
+            if (t.getId() > maxId) {
+                maxId = t.getId();
+            }
+        }
+        return maxId + 1;
     }
 
     /**
-     * Persists the current AcademicTasks memory list to the file path in CSV format.
+     * Persists the current validated AcademicTasks memory list to the file path in CSV format.
      */
     public void saveTasks() {
         File file = new File(FILE_PATH);
@@ -204,53 +266,13 @@ public class TaskStore {
                 writer.write(HEADER);
                 writer.newLine();
 
-                for (AcademicTask task : AcademicTasks) {
+                for (AcademicTask task : academicTasks) {
                     writer.write(toCsvRow(task));
                     writer.newLine();
                 }
             }
         } catch (IOException e) {
-            System.out.println("Error saving tasks to " + FILE_PATH + ": " + e.getMessage());
-        }
-    }
-
-    /**
-     * Loads the AcademicTasks list from the local CSV file.
-     * If the file is missing, the load ends silently.
-     */
-    public void loadTasks() {
-        File file = new File(FILE_PATH);
-        if (!file.exists()) {
-            return;
-        }
-
-        List<AcademicTask> loaded = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line = reader.readLine(); // skip header row
-            if (line == null) {
-                return; // empty file
-            }
-
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) {
-                    continue;
-                }
-                try {
-                    AcademicTask task = fromCsvRow(line);
-                    if (task != null) {
-                        loaded.add(task);
-                    }
-                } catch (InvalidTaskDataException e) {
-                    System.out.println("Skipping row: " + e.getMessage());
-                }
-            }
-
-            AcademicTasks.clear();
-            AcademicTasks.addAll(loaded);
-
-        } catch (IOException e) {
-            System.out.println("Error loading tasks from " + FILE_PATH + ": " + e.getMessage());
+            System.err.println("Error saving tasks to " + FILE_PATH + ": " + e.getMessage());
         }
     }
 
@@ -271,49 +293,44 @@ public class TaskStore {
     }
 
     /**
-     * Parses a CSV row string into a loaded AcademicTask instance.
-     *
-     * @param line the CSV line to parse
-     * @return the parsed AcademicTask object
-     * @throws InvalidTaskDataException if the row format or values violate domain rules
+     * Loads the AcademicTasks list from the local CSV file.
+     * If any row is invalid or malformed, it is reported and rejected without crashing.
      */
-    private static AcademicTask fromCsvRow(String line) throws InvalidTaskDataException {
-        List<String> fields = parseCsvLine(line);
-
-        if (fields.size() != 8) {
-            throw new InvalidTaskDataException("Malformed CSV row, expected 8 fields but found " + fields.size() + ": " + line);
+    public void loadTasks() {
+        File file = new File(FILE_PATH);
+        if (!file.exists()) {
+            return;
         }
 
-        try {
-            long id = Long.parseLong(fields.get(0));
-            long subjectId = Long.parseLong(fields.get(1));
-            String subjectCode = fields.get(2);
-            String title = fields.get(3);
-            String notes = fields.get(4);
-            
-            if (fields.get(5).isEmpty()) {
-                throw new InvalidTaskDataException("Missing task type in row: " + line);
+        List<AcademicTask> loaded = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line = reader.readLine(); // skip header row
+            if (line == null) {
+                return; // empty file
             }
-            TaskType type = TaskType.valueOf(fields.get(5));
 
-            if (fields.get(6).isEmpty()) {
-                throw new InvalidTaskDataException("Missing task due date in row: " + line);
+            int lineNum = 1;
+            while ((line = reader.readLine()) != null) {
+                lineNum++;
+                if (line.isBlank()) {
+                    continue;
+                }
+                try {
+                    AcademicTask task = fromCsvRow(line);
+                    if (task != null) {
+                        loaded.add(task);
+                    }
+                } catch (InvalidTaskDataException e) {
+                    System.err.println("[CSV Line " + lineNum + " Validation Error] Skipping invalid row: " + e.getMessage());
+                }
             }
-            LocalDateTime dueDate = LocalDateTime.parse(fields.get(6), DATE_FORMAT);
 
-            if (fields.get(7).isEmpty()) {
-                throw new InvalidTaskDataException("Missing task status in row: " + line);
-            }
-            TaskStatus status = TaskStatus.valueOf(fields.get(7));
+            academicTasks.clear();
+            academicTasks.addAll(loaded);
 
-            AcademicTask task = new AcademicTask(id, subjectId, subjectCode, title, notes, type, dueDate, status);
-            task.validate();
-            return task;
-
-        } catch (InvalidTaskDataException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new InvalidTaskDataException("Failed to parse task row: " + line + " (" + e.getMessage() + ")", e);
+        } catch (IOException e) {
+            System.err.println("Error loading tasks from " + FILE_PATH + ": " + e.getMessage());
         }
     }
 

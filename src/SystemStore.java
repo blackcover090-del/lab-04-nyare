@@ -1,9 +1,4 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,7 +34,7 @@ public class SystemStore {
     }
 
     /**
-     * Updates diagnostics state and saves the SystemData to the data/system.dat file using binary streams.
+     * Updates diagnostics state, validates the metadata, and saves SystemData to data/system.dat using binary streams.
      */
     public void saveSystemData() {
         updateStatefulSystemData();
@@ -48,6 +43,13 @@ public class SystemStore {
                 .replace("AM", "am")
                 .replace("PM", "pm");
         systemData.setLastSavedDate(formattedDate);
+
+        try {
+            systemData.validate();
+        } catch (InvalidTaskDataException e) {
+            System.err.println("Cannot save invalid system data: " + e.getMessage());
+            return;
+        }
 
         File file = new File(FILE_NAME);
         try {
@@ -64,7 +66,7 @@ public class SystemStore {
                 out.writeUTF(systemData.getEnvironment());
             }
         } catch (IOException e) {
-            System.out.println("Error saving system data: " + e.getMessage());
+            System.err.println("Error saving system data: " + e.getMessage());
         }
     }
 
@@ -105,7 +107,7 @@ public class SystemStore {
             String applicationPlatform = in.readUTF();
             String environment = in.readUTF();
 
-            this.systemData = new SystemData(
+            SystemData loaded = new SystemData(
                     lastTaskId,
                     lastSavedDate,
                     activeTasksCount,
@@ -114,8 +116,10 @@ public class SystemStore {
                     applicationPlatform,
                     environment
             );
-        } catch (IOException e) {
-            System.out.println("Error loading system data: " + e.getMessage());
+            loaded.validate();
+            this.systemData = loaded;
+        } catch (Exception e) {
+            System.err.println("Warning: Could not load valid system data from " + FILE_NAME + " (" + e.getMessage() + "). Loading defaults.");
             this.systemData = createDefault();
         }
     }
